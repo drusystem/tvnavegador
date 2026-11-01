@@ -14,11 +14,14 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.mozilla.geckoview.AllowOrDeny
+import org.mozilla.geckoview.GeckoPreferenceController
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
+import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
@@ -41,6 +44,7 @@ class MainActivity : Activity() {
     private lateinit var session: GeckoSession
     private lateinit var home: LinearLayout
     private lateinit var status: TextView
+    private lateinit var firstTile: View
 
     private val ui = Handler(Looper.getMainLooper())
     private var canGoBack = false
@@ -52,13 +56,27 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val runtime = sRuntime ?: GeckoRuntime.create(applicationContext).also { sRuntime = it }
+        // User-agent de escritorio para que el sitio sirva el reproductor grande,
+        // pero la pagina se maqueta a 1280x720: el H313 no aguanta un viewport de PC.
+        val runtimeSettings = GeckoRuntimeSettings.Builder()
+            .screenSizeOverride(1280, 720)
+            .displayDensityOverride(1f)
+            .build()
+        val runtime = sRuntime ?: GeckoRuntime.create(applicationContext, runtimeSettings).also {
+            sRuntime = it
+        }
+        // El decodificador de hardware del Allwinner deja el video en negro.
+        GeckoPreferenceController.setGeckoPref(
+            "media.hardware-video-decoding.enabled",
+            false,
+            GeckoPreferenceController.PREF_BRANCH_USER
+        ).accept({ _ -> }, { _ -> })
+        installQualityHelper(runtime)
 
-        // Modo "escritorio": reproductores mas grandes y compatibles en pantalla de TV
         val settings = GeckoSessionSettings.Builder()
             .usePrivateMode(false)
             .userAgentMode(GeckoSessionSettings.USER_AGENT_MODE_DESKTOP)
-            .viewportMode(GeckoSessionSettings.VIEWPORT_MODE_DESKTOP)
+            .viewportMode(GeckoSessionSettings.VIEWPORT_MODE_MOBILE)
             .build()
         session = GeckoSession(settings)
         setupDelegates()
@@ -99,18 +117,38 @@ class MainActivity : Activity() {
         l.addView(title)
 
         val hint = TextView(this)
-        hint.text = "En la web: cursor del control y OK para clic\nAtras: volver  |  Atras (mantener): inicio  |  Canal +/-: desplazar"
+        hint.text = "Flechas y OK: elegir  |  En la web: cursor del control\nAtras: volver  |  Atras (mantener): inicio  |  Canal +/-: desplazar"
         hint.setTextColor(Color.LTGRAY)
         hint.textSize = 15f
         hint.gravity = Gravity.CENTER
-        hint.setPadding(0, 12, 0, 36)
+        hint.setPadding(0, 12, 0, 28)
         l.addView(hint)
 
-        val first = addHomeButton(l, "SeriesDonghua") { openUrl("https://seriesdonghua.com/") }
-        addHomeButton(l, "JKAnime") { openUrl("https://jkanime.net/") }
-        addHomeButton(l, "Escribir otra direccion...") { askUrl() }
-        addHomeButton(l, "Seguir navegando") { if (hasPage) showHome(false) }
-        addHomeButton(l, "Salir") { finish() }
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER
+        firstTile = addTile(row, "SeriesDonghua", R.drawable.ic_seriesdonghua) {
+            openUrl("https://seriesdonghua.com/")
+        }
+        addTile(row, "JKAnime", R.drawable.ic_jkanime) {
+            openUrl("https://jkanime.net/")
+        }
+        addTile(row, "Navegador", R.drawable.ic_navegador) {
+            askUrl()
+        }
+        l.addView(row)
+
+        val actions = LinearLayout(this)
+        actions.orientation = LinearLayout.HORIZONTAL
+        actions.gravity = Gravity.CENTER
+        addHomeButton(actions, "Seguir navegando", 420) { if (hasPage) showHome(false) }
+        addHomeButton(actions, "Salir", 280) { finish() }
+        val actionsLp = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        actionsLp.topMargin = 22
+        l.addView(actions, actionsLp)
 
         status = TextView(this)
         status.setTextColor(Color.GRAY)
@@ -119,11 +157,52 @@ class MainActivity : Activity() {
         status.setPadding(0, 28, 0, 0)
         l.addView(status)
 
-        first.requestFocus()
+        firstTile.requestFocus()
         return l
     }
 
-    private fun addHomeButton(parent: LinearLayout, text: String, onClick: () -> Unit): Button {
+    private fun addTile(parent: LinearLayout, label: String, imageRes: Int, onClick: () -> Unit): View {
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.gravity = Gravity.CENTER_HORIZONTAL
+        card.setPadding(16, 16, 16, 14)
+        card.isFocusable = true
+        card.isClickable = true
+        card.setBackgroundColor(Color.parseColor("#333344"))
+        card.setOnFocusChangeListener { v, has ->
+            v.setBackgroundColor(Color.parseColor(if (has) "#E65100" else "#333344"))
+        }
+        card.setOnClickListener { onClick() }
+
+        val size = (resources.displayMetrics.density * 210).toInt()
+        val image = ImageView(this)
+        image.setImageResource(imageRes)
+        image.scaleType = ImageView.ScaleType.FIT_CENTER
+        image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        card.addView(image, LinearLayout.LayoutParams(size, size))
+
+        val text = TextView(this)
+        text.text = label
+        text.setTextColor(Color.WHITE)
+        text.textSize = 20f
+        text.gravity = Gravity.CENTER
+        text.setPadding(0, 12, 0, 0)
+        card.addView(text, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+
+        val lp = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        lp.marginStart = 16
+        lp.marginEnd = 16
+        parent.addView(card, lp)
+        return card
+    }
+
+    private fun addHomeButton(parent: LinearLayout, text: String, width: Int = 900, onClick: () -> Unit): Button {
         val b = Button(this)
         b.text = text
         b.textSize = 20f
@@ -135,8 +214,10 @@ class MainActivity : Activity() {
             v.setBackgroundColor(Color.parseColor(if (has) "#E65100" else "#333344"))
         }
         b.setOnClickListener { onClick() }
-        val lp = LinearLayout.LayoutParams(900, ViewGroup.LayoutParams.WRAP_CONTENT)
+        val lp = LinearLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.topMargin = 14
+        lp.marginStart = 12
+        lp.marginEnd = 12
         parent.addView(b, lp)
         return b
     }
@@ -168,7 +249,7 @@ class MainActivity : Activity() {
     private fun showHome(show: Boolean) {
         home.visibility = if (show) View.VISIBLE else View.GONE
         if (show) {
-            home.getChildAt(2)?.requestFocus()
+            firstTile.requestFocus()
         } else {
             geckoView.requestFocus()
         }
@@ -229,6 +310,13 @@ class MainActivity : Activity() {
             return if (p.size >= 2) p.takeLast(2).joinToString(".") else h.lowercase()
         }
         return base(a) == base(b)
+    }
+
+    /** Si la pagina ofrece 1080p y tambien 720p, elige 720p. Si no hay 720p, elige 480p. */
+    private fun installQualityHelper(runtime: GeckoRuntime) {
+        runtime.webExtensionController
+            .installBuiltIn("resource://android/assets/quality/")
+            .accept({ _ -> }, { _ -> })
     }
 
     /** Instala uBlock Origin una sola vez (necesita internet). */

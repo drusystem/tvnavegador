@@ -18,7 +18,7 @@ Si dudas cual es: prueba primero la de 32 bits; funciona tambien en muchas de 64
 | Tecla | Accion |
 |---|---|
 | Cursor del control + OK | Mover el puntero y hacer clic en la pagina |
-| Flechas y OK en el inicio | Elegir SeriesDonghua, JKAnime u otra direccion |
+| Flechas y OK en el inicio | Elegir el cuadro SeriesDonghua, JKAnime o Navegador |
 | Atras | Pagina anterior (o inicio si no hay mas) |
 | Atras mantenido ~1 s | Pantalla de inicio |
 | Menu / Info / Guia | Abrir o cerrar el inicio |
@@ -26,8 +26,9 @@ Si dudas cual es: prueba primero la de 32 bits; funciona tambien en muchas de 64
 
 ## Incluye
 
-- Pantalla de inicio con botones a SeriesDonghua, JKAnime y direccion libre.
-- Modo escritorio (reproductores mas grandes).
+- Pantalla de inicio con cuadros: SeriesDonghua, JKAnime y navegador libre.
+- User-agent de escritorio, con la pagina maquetada a 1280x720.
+- El video se decodifica por software: el chip de estas TV box deja la imagen en negro si se usa el decodificador de hardware.
 - Bloqueo de pop-ups y de esquemas raros (intent://, market://).
 - uBlock Origin se instala solo la primera vez (requiere internet).
 
