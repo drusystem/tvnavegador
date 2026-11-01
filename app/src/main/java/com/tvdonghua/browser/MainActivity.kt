@@ -75,6 +75,7 @@ class MainActivity : Activity() {
         }
 
         geckoView = GeckoView(this)
+        geckoView.setBackgroundColor(Color.parseColor("#101018"))
         geckoView.isFocusable = true
         geckoView.isFocusableInTouchMode = true
 
@@ -293,20 +294,16 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
-        val veil = View(this)
-        val veilBg = GradientDrawable()
-        veilBg.cornerRadius = dp(22).toFloat()
-        veilBg.setColor(Color.WHITE)
-        veil.background = veilBg
-        veil.alpha = 0f
-        veil.isFocusable = false
-        veil.isClickable = false
-        card.addView(veil, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        ))
+        // La sombra va encima de la tarjeta, sin un hijo a pantalla completa:
+        // ese hijo estiraba la primera opción y tapaba el bosque.
+        val veil = GradientDrawable()
+        veil.cornerRadius = dp(22).toFloat()
+        veil.setColor(Color.WHITE)
+        veil.alpha = 0
+        card.foreground = veil
         card.setOnFocusChangeListener { _, has ->
-            veil.alpha = if (has) 0.34f else 0f
+            veil.alpha = if (has) 87 else 0
+            card.invalidate()
         }
 
         if (parent != null) {

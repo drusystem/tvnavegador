@@ -12,9 +12,7 @@
     css.textContent =
       "html ins.604c7625,html [id^='adangle-'],html #adangle-pop-iframe-container," +
       "html iframe[src*='agl003.com'],html iframe[src*='acscdn.com']{" +
-      "pointer-events:none !important;visibility:hidden !important;}" +
-      "html body *{animation-duration:.01ms !important;animation-iteration-count:1 !important;" +
-      "transition-duration:.01ms !important;scroll-behavior:auto !important;}";
+      "pointer-events:none !important;visibility:hidden !important;}";
     document.documentElement.appendChild(css);
 
     document.addEventListener("beforescriptexecute", function (e) {
@@ -24,27 +22,6 @@
         e.stopPropagation();
       }
     }, true);
-
-    function mark(img) {
-      if (!img || img.tagName !== "IMG" || img.dataset.tvnav) return;
-      img.dataset.tvnav = "1";
-      if (!img.getAttribute("loading")) img.setAttribute("loading", "lazy");
-      img.decoding = "async";
-    }
-    new MutationObserver(function (recs) {
-      for (var i = 0; i < recs.length; i++) {
-        var nodes = recs[i].addedNodes;
-        for (var j = 0; j < nodes.length; j++) {
-          var n = nodes[j];
-          if (!n || !n.tagName) continue;
-          if (n.tagName === "IMG") mark(n);
-          else if (n.getElementsByTagName && n.tagName !== "SCRIPT" && n.tagName !== "STYLE") {
-            var imgs = n.getElementsByTagName("img");
-            for (var k = 0; k < imgs.length; k++) mark(imgs[k]);
-          }
-        }
-      }
-    }).observe(document.documentElement, { childList: true, subtree: true });
 
     function calm() {
       if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.owlCarousel) return;
