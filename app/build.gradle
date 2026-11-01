@@ -5,7 +5,10 @@ plugins {
 
 android {
     namespace 'com.tvdonghua.browser'
-    compileSdk 37
+    // GeckoView 159 exige API 37.2 (version menor del SDK 37)
+    compileSdk {
+        version = release(37) { it.minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId "com.tvdonghua.browser"

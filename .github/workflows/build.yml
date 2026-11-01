@@ -27,7 +27,7 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "platform-tools" \
-            "platforms;android-37.0" || true
+            "platforms;android-37.2" || true
 
       - name: Resolver version de GeckoView
         env:

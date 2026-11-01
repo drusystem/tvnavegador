@@ -1,3 +1,15 @@
+// GeckoView trae kotlin-stdlib 2.4.x; el compilador de Kotlin integrado en AGP 9.2
+// es 2.2.0 y no puede leerlo. Se sube a 2.4.20 para que coincida.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20'
+    }
+}
+
 plugins {
     id 'com.android.application' version '9.2.0' apply false
 }
