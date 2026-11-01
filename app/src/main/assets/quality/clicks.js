@@ -55,8 +55,16 @@
 
     function layer(el) {
       if (!el || el === document.body || el === document.documentElement) return false;
+      if (el.closest && el.closest("video, .jwplayer, .dplayer, .artplayer, .plyr, .video-js")) return false;
       var tag = el.tagName;
-      if (tag === "IFRAME" || tag === "INS") return true;
+      if (tag === "INS") return true;
+      if (tag === "IFRAME") {
+        var src = el.getAttribute("src") || "";
+        if (/agl003|acscdn|doubleclick|googlesyndication|adangle/i.test(src)) return true;
+        var box = el.getBoundingClientRect();
+        if (box.width >= 320 && box.height >= 180) return false;
+        return true;
+      }
       var id = (el.id || "") + " " + (typeof el.className === "string" ? el.className : "");
       if (/adangle|popunder|aclib|acl-/i.test(id)) return true;
       var st;

@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "TV Nav",
-  "version": "1.8",
+  "version": "1.9",
   "browser_specific_settings": {
     "gecko": {
       "id": "tvnav-quality@tvdonghua.browser"
@@ -21,6 +21,12 @@
       "js": ["clicks.js"],
       "run_at": "document_start",
       "all_frames": false
+    },
+    {
+      "matches": ["*://*/*"],
+      "js": ["screen.js"],
+      "run_at": "document_start",
+      "all_frames": true
     },
     {
       "matches": ["*://*/*"],

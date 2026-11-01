@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -61,6 +62,7 @@ class MainActivity : Activity() {
     private var backLongHandled = false
     private var browserReady = false
     private var pendingUrl: String? = null
+    private var pageFullScreen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -140,19 +142,31 @@ class MainActivity : Activity() {
             "prefs:\n" +
                 "  media.hardware-video-decoding.enabled: false\n" +
                 "  media.rdd-process.enabled: false\n" +
-                "  media.cache_size: 65536\n" +
+                "  media.cache_size: 131072\n" +
                 "  media.memory_cache_max_size: 65536\n" +
+                "  media.cache_readahead_limit: 90\n" +
+                "  media.cache_readahead_limit.cellular: 90\n" +
+                "  media.cache_resume_threshold: 15\n" +
+                "  media.cache_resume_threshold.cellular: 15\n" +
+                "  media.decoder.skip_when_video_too_slow_ms: 700\n" +
                 "  dom.ipc.processCount: 1\n" +
                 "  dom.ipc.processCount.webIsolated: 1\n" +
                 "  dom.ipc.processPrelaunch.enabled: false\n" +
                 "  fission.autostart: false\n" +
                 "  browser.sessionhistory.max_total_viewers: 1\n" +
+                "  browser.cache.disk.enable: true\n" +
+                "  browser.cache.disk.capacity: 102400\n" +
                 "  browser.cache.memory.capacity: 32768\n" +
                 "  image.mem.surfacecache.max_size_kb: 65536\n" +
-                "  image.multithreaded_decoding.limit: 1\n" +
+                "  image.multithreaded_decoding.limit: 2\n" +
                 "  image.animation_mode: \"none\"\n" +
+                "  gfx.downloadable_fonts.enabled: false\n" +
+                "  nglayout.initialpaint.delay: 0\n" +
                 "  accessibility.force_disabled: 1\n" +
                 "  general.smoothScroll: false\n" +
+                "  network.dns.disableIPv6: true\n" +
+                "  network.dnsCacheExpiration: 3600\n" +
+                "  network.dnsCacheEntries: 400\n" +
                 "  network.predictor.enabled: false\n" +
                 "  network.prefetch-next: false\n"
         )
@@ -198,13 +212,13 @@ class MainActivity : Activity() {
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
         row.gravity = Gravity.CENTER
-        firstTile = addPill(row, "SeriesDonghua", R.drawable.ic_seriesdonghua) {
+        firstTile = addPill(row, "SeriesDonghua", R.drawable.ic_seriesdonghua, 68) {
             openUrl("https://seriesdonghua.com/")
         }
-        addPill(row, "JKAnime", R.drawable.ic_jkanime) {
+        addPill(row, "JKAnime", R.drawable.ic_jkanime, 44) {
             openUrl("https://jkanime.net/")
         }
-        addPill(row, "Navegador", R.drawable.ic_navegador) {
+        addPill(row, "Navegador", R.drawable.ic_navegador, 68) {
             askUrl()
         }
         seguirTile = addPill(row, "Seguir", null) { if (hasPage) showHome(false) }
@@ -253,7 +267,7 @@ class MainActivity : Activity() {
     }
 
     /** La tarjeta no cambia de tamaño ni de icono. El foco solo pone una sombra blanca encima. */
-    private fun addPill(parent: LinearLayout?, label: String, imageRes: Int?, onClick: () -> Unit): View {
+    private fun addPill(parent: LinearLayout?, label: String, imageRes: Int?, iconDp: Int = 56, onClick: () -> Unit): View {
         val card = FrameLayout(this)
         card.isFocusable = true
         card.isClickable = true
@@ -270,13 +284,14 @@ class MainActivity : Activity() {
             val image = ImageView(this)
             image.setImageResource(imageRes)
             image.adjustViewBounds = true
-            image.maxWidth = dp(92)
-            image.maxHeight = dp(52)
+            image.maxWidth = dp(108)
+            image.maxHeight = dp(iconDp)
             image.scaleType = ImageView.ScaleType.FIT_CENTER
+            image.setBackgroundColor(Color.TRANSPARENT)
             image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             val imageLp = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(52)
+                dp(iconDp)
             )
             imageLp.marginEnd = dp(12)
             content.addView(image, imageLp)
@@ -285,7 +300,8 @@ class MainActivity : Activity() {
         val text = TextView(this)
         text.text = label
         text.setTextColor(Color.WHITE)
-        text.textSize = 18f
+        text.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        text.textSize = 20f
         text.setShadowLayer(6f, 0f, 1f, Color.parseColor("#66000000"))
         content.addView(text)
 
@@ -372,7 +388,7 @@ class MainActivity : Activity() {
     }
 
     private fun urlButton(label: String, onClick: () -> Unit): View {
-        val b = addPill(null, label, null, onClick)
+        val b = addPill(null, label, null, onClick = onClick)
         val lp = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
@@ -428,6 +444,10 @@ class MainActivity : Activity() {
     }
 
     private fun showHome(show: Boolean) {
+        if (show && pageFullScreen && ::session.isInitialized) {
+            pageFullScreen = false
+            session.exitFullScreen()
+        }
         home.visibility = if (show) View.VISIBLE else View.GONE
         if (show) {
             urlPanel.visibility = View.GONE
@@ -474,6 +494,17 @@ class MainActivity : Activity() {
                     ui.post { session.loadUri(uri) }
                 }
                 return null
+            }
+        }
+
+        session.contentDelegate = object : GeckoSession.ContentDelegate {
+            override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
+                pageFullScreen = fullScreen
+                if (fullScreen) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
             }
         }
 
@@ -573,6 +604,11 @@ class MainActivity : Activity() {
                 return
             }
             if (hasPage) showHome(false) else finish()
+            return
+        }
+        if (pageFullScreen) {
+            pageFullScreen = false
+            session.exitFullScreen()
             return
         }
         if (canGoBack) session.goBack() else showHome(true)
