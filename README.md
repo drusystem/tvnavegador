@@ -17,9 +17,8 @@ Si dudas cual es: prueba primero la de 32 bits; funciona tambien en muchas de 64
 
 | Tecla | Accion |
 |---|---|
-| Flechas | Mover el cursor (acelera si mantienes) |
-| Flecha contra el borde de arriba/abajo | Desplaza la pagina |
-| OK / Enter | Clic en el cursor |
+| Cursor del control + OK | Mover el puntero y hacer clic en la pagina |
+| Flechas y OK en el inicio | Elegir SeriesDonghua, JKAnime u otra direccion |
 | Atras | Pagina anterior (o inicio si no hay mas) |
 | Atras mantenido ~1 s | Pantalla de inicio |
 | Menu / Info / Guia | Abrir o cerrar el inicio |

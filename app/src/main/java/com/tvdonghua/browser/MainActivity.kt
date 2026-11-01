@@ -6,11 +6,9 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.text.InputType
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -41,7 +39,6 @@ class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var geckoView: GeckoView
     private lateinit var session: GeckoSession
-    private lateinit var cursor: CursorView
     private lateinit var home: LinearLayout
     private lateinit var status: TextView
 
@@ -69,23 +66,17 @@ class MainActivity : Activity() {
 
         geckoView = GeckoView(this)
         geckoView.setSession(session)
+        geckoView.isFocusable = true
+        geckoView.isFocusableInTouchMode = true
 
-        cursor = CursorView(this)
         home = buildHome()
 
         root = FrameLayout(this)
         root.setBackgroundColor(Color.BLACK)
         val match = ViewGroup.LayoutParams.MATCH_PARENT
         root.addView(geckoView, FrameLayout.LayoutParams(match, match))
-        root.addView(cursor, FrameLayout.LayoutParams(match, match))
         root.addView(home, FrameLayout.LayoutParams(match, match))
         setContentView(root)
-
-        cursor.post {
-            cursor.cx = cursor.width / 2f
-            cursor.cy = cursor.height / 2f
-            cursor.invalidate()
-        }
 
         showHome(true)
         installUBlock(runtime)
@@ -108,7 +99,7 @@ class MainActivity : Activity() {
         l.addView(title)
 
         val hint = TextView(this)
-        hint.text = "Flechas: mover cursor  |  OK: clic  |  Atras: volver  |  Atras (mantener): inicio"
+        hint.text = "En la web: cursor del control y OK para clic\nAtras: volver  |  Atras (mantener): inicio  |  Canal +/-: desplazar"
         hint.setTextColor(Color.LTGRAY)
         hint.textSize = 15f
         hint.gravity = Gravity.CENTER
@@ -176,7 +167,6 @@ class MainActivity : Activity() {
 
     private fun showHome(show: Boolean) {
         home.visibility = if (show) View.VISIBLE else View.GONE
-        cursor.visibility = if (show) View.GONE else View.VISIBLE
         if (show) {
             home.getChildAt(2)?.requestFocus()
         } else {
@@ -278,39 +268,14 @@ class MainActivity : Activity() {
     }
 
     // ------------------------------------------------------------------ Control remoto
-
-    private fun clickAtCursor() {
-        val t = SystemClock.uptimeMillis()
-        val down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, cursor.cx, cursor.cy, 0)
-        down.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
-        geckoView.dispatchTouchEvent(down)
-        down.recycle()
-        ui.postDelayed({
-            val t2 = SystemClock.uptimeMillis()
-            val up = MotionEvent.obtain(t2 - 60, t2, MotionEvent.ACTION_UP, cursor.cx, cursor.cy, 0)
-            up.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
-            geckoView.dispatchTouchEvent(up)
-            up.recycle()
-        }, 60)
-    }
+    // El stick ya trae puntero (boton de cursor del mando) y el OK hace clic.
+    // No se dibuja otro cursor ni se fabrican toques: el puntero llega a la pagina.
 
     private fun scrollPage(dy: Double) {
         session.panZoomController.scrollBy(
             ScreenLength.fromPixels(0.0),
             ScreenLength.fromPixels(dy)
         )
-    }
-
-    private fun moveCursor(dx: Int, dy: Int, repeat: Int) {
-        val speed = (18f + repeat * 5f).coerceAtMost(90f)
-        val margin = 6f
-        // Si el cursor ya esta en el borde superior/inferior, se hace scroll de la pagina
-        if (dy > 0 && cursor.cy >= cursor.height - margin) {
-            scrollPage(speed * 3.0)
-        } else if (dy < 0 && cursor.cy <= margin) {
-            scrollPage(-speed * 3.0)
-        }
-        cursor.moveBy(dx * speed, dy * speed)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -344,21 +309,11 @@ class MainActivity : Activity() {
             return true
         }
 
-        // En la pantalla de inicio se usa la navegacion normal por foco
+        // En el inicio, flechas y OK mueven el foco entre los botones.
         if (home.visibility == View.VISIBLE) return super.dispatchKeyEvent(event)
 
-        // Modo navegador: D-pad mueve el cursor
+        // En la pagina, flechas y OK no se interceptan: los usa el cursor del mando.
         when (code) {
-            KeyEvent.KEYCODE_DPAD_UP -> { if (down) moveCursor(0, -1, event.repeatCount); return true }
-            KeyEvent.KEYCODE_DPAD_DOWN -> { if (down) moveCursor(0, 1, event.repeatCount); return true }
-            KeyEvent.KEYCODE_DPAD_LEFT -> { if (down) moveCursor(-1, 0, event.repeatCount); return true }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> { if (down) moveCursor(1, 0, event.repeatCount); return true }
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_BUTTON_A -> {
-                if (down && event.repeatCount == 0) clickAtCursor()
-                return true
-            }
             KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
                 if (down) scrollPage(500.0); return true
             }

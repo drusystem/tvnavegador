@@ -14,8 +14,8 @@ android {
         applicationId "com.tvdonghua.browser"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
     }
 
     // Dos APK: una para TV box de 32 bits (la mas comun) y otra de 64 bits
