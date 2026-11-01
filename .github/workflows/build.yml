@@ -21,9 +21,13 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # El runner ya trae el Android SDK; solo aceptamos las licencias
-      - name: Aceptar licencias del Android SDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Instalar Android SDK y aceptar licencias
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
 
       - name: Resolver version de GeckoView
         env:
