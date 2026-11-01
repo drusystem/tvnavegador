@@ -1,8 +1,8 @@
 package com.tvdonghua.browser
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -11,14 +11,15 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import org.mozilla.geckoview.AllowOrDeny
-import org.mozilla.geckoview.GeckoPreferenceController
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
@@ -26,68 +27,59 @@ import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.ScreenLength
-import org.mozilla.geckoview.WebExtension
-import org.mozilla.geckoview.WebExtensionController
+import java.util.concurrent.atomic.AtomicInteger
 
 class MainActivity : Activity() {
 
     companion object {
         private var sRuntime: GeckoRuntime? = null
-        private const val UBLOCK_URL =
-            "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
-        private const val PREFS = "tvnav"
-        private const val KEY_UBLOCK = "ublock_ok"
     }
 
     private lateinit var root: FrameLayout
     private lateinit var geckoView: GeckoView
     private lateinit var session: GeckoSession
-    private lateinit var home: LinearLayout
+    private lateinit var home: FrameLayout
+    private lateinit var clock: TextView
     private lateinit var status: TextView
     private lateinit var firstTile: View
+    private lateinit var seguirTile: View
+    private lateinit var urlPanel: View
+    private lateinit var urlInput: EditText
+    private val homePills = ArrayList<View>()
 
     private val ui = Handler(Looper.getMainLooper())
+    private val clockTick = object : Runnable {
+        override fun run() {
+            clock.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            ui.postDelayed(this, 1000)
+        }
+    }
     private var canGoBack = false
     private var currentHost: String? = null
     private var hasPage = false
     private var backDownTime = 0L
     private var backLongHandled = false
+    private var browserReady = false
+    private var pendingUrl: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // User-agent de escritorio para que el sitio sirva el reproductor grande,
-        // pero la pagina se maqueta a 1280x720: el H313 no aguanta un viewport de PC.
+        // El pref de video solo cuenta si Gecko lo lee al arrancar.
         val runtimeSettings = GeckoRuntimeSettings.Builder()
-            .screenSizeOverride(1280, 720)
-            .displayDensityOverride(1f)
+            .configFilePath(writeGeckoConfig())
+            .fissionEnabled(false)
             .build()
         val runtime = sRuntime ?: GeckoRuntime.create(applicationContext, runtimeSettings).also {
             sRuntime = it
         }
-        // El decodificador de hardware del Allwinner deja el video en negro.
-        GeckoPreferenceController.setGeckoPref(
-            "media.hardware-video-decoding.enabled",
-            false,
-            GeckoPreferenceController.PREF_BRANCH_USER
-        ).accept({ _ -> }, { _ -> })
-        installQualityHelper(runtime)
-
-        val settings = GeckoSessionSettings.Builder()
-            .usePrivateMode(false)
-            .userAgentMode(GeckoSessionSettings.USER_AGENT_MODE_DESKTOP)
-            .viewportMode(GeckoSessionSettings.VIEWPORT_MODE_MOBILE)
-            .build()
-        session = GeckoSession(settings)
-        setupDelegates()
-        session.open(runtime)
 
         geckoView = GeckoView(this)
-        geckoView.setSession(session)
         geckoView.isFocusable = true
         geckoView.isFocusableInTouchMode = true
 
         home = buildHome()
+        ui.post(clockTick)
 
         root = FrameLayout(this)
         root.setBackgroundColor(Color.BLACK)
@@ -97,151 +89,343 @@ class MainActivity : Activity() {
         setContentView(root)
 
         showHome(true)
-        installUBlock(runtime)
+        prepareBrowser(runtime)
+    }
+
+    /** Quita uBlock (en este chip congela la pagina) y recien ahi abre el motor. */
+    private fun prepareBrowser(runtime: GeckoRuntime) {
+        runtime.webExtensionController.list().accept({ extensions ->
+            val heavy = extensions.orEmpty().filter { ext ->
+                val id = ext.id.lowercase()
+                id.contains("ublock") || id.contains("raymondhill")
+            }
+            if (heavy.isEmpty()) {
+                installQualityHelper(runtime)
+            } else {
+                val left = AtomicInteger(heavy.size)
+                heavy.forEach { ext ->
+                    runtime.webExtensionController.uninstall(ext).accept(
+                        { _ -> if (left.decrementAndGet() == 0) installQualityHelper(runtime) },
+                        { _ -> if (left.decrementAndGet() == 0) installQualityHelper(runtime) }
+                    )
+                }
+            }
+        }, { _ ->
+            installQualityHelper(runtime)
+        })
+    }
+
+    private fun ensureBrowser(runtime: GeckoRuntime) {
+        if (browserReady) return
+        val settings = GeckoSessionSettings.Builder()
+            .usePrivateMode(false)
+            .userAgentMode(GeckoSessionSettings.USER_AGENT_MODE_DESKTOP)
+            .viewportMode(GeckoSessionSettings.VIEWPORT_MODE_DESKTOP)
+            .build()
+        session = GeckoSession(settings)
+        setupDelegates()
+        session.open(runtime)
+        geckoView.setSession(session)
+        browserReady = true
+        pendingUrl?.let { url ->
+            pendingUrl = null
+            openUrl(url)
+        }
+    }
+
+    private fun writeGeckoConfig(): String {
+        val file = java.io.File(filesDir, "geckoview-config.yaml")
+        file.writeText(
+            "prefs:\n" +
+                "  media.hardware-video-decoding.enabled: false\n" +
+                "  media.rdd-process.enabled: false\n" +
+                "  media.cache_size: 65536\n" +
+                "  media.memory_cache_max_size: 65536\n" +
+                "  dom.ipc.processCount: 1\n" +
+                "  dom.ipc.processCount.webIsolated: 1\n" +
+                "  dom.ipc.processPrelaunch.enabled: false\n" +
+                "  fission.autostart: false\n" +
+                "  browser.sessionhistory.max_total_viewers: 1\n" +
+                "  browser.cache.memory.capacity: 32768\n" +
+                "  image.mem.surfacecache.max_size_kb: 65536\n" +
+                "  image.multithreaded_decoding.limit: 1\n" +
+                "  image.animation_mode: \"none\"\n" +
+                "  accessibility.force_disabled: 1\n" +
+                "  general.smoothScroll: false\n" +
+                "  network.predictor.enabled: false\n" +
+                "  network.prefetch-next: false\n"
+        )
+        return file.absolutePath
     }
 
     // ------------------------------------------------------------------ UI de inicio
 
-    private fun buildHome(): LinearLayout {
-        val l = LinearLayout(this)
-        l.orientation = LinearLayout.VERTICAL
-        l.gravity = Gravity.CENTER
-        l.setBackgroundColor(Color.parseColor("#E6101018"))
-        l.setPadding(80, 40, 80, 40)
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-        val title = TextView(this)
-        title.text = "TV Navegador"
-        title.setTextColor(Color.WHITE)
-        title.textSize = 34f
-        title.gravity = Gravity.CENTER
-        l.addView(title)
+    private fun pillBackground(): GradientDrawable {
+        val d = GradientDrawable()
+        d.cornerRadius = dp(22).toFloat()
+        d.setColor(Color.parseColor("#73E6D8F8"))
+        return d
+    }
 
-        val hint = TextView(this)
-        hint.text = "Flechas y OK: elegir  |  En la web: cursor del control\nAtras: volver  |  Atras (mantener): inicio  |  Canal +/-: desplazar"
-        hint.setTextColor(Color.LTGRAY)
-        hint.textSize = 15f
-        hint.gravity = Gravity.CENTER
-        hint.setPadding(0, 12, 0, 28)
-        l.addView(hint)
+    private fun buildHome(): FrameLayout {
+        val screen = FrameLayout(this)
+
+        val wallpaper = ImageView(this)
+        wallpaper.setImageResource(R.drawable.bg_home)
+        wallpaper.scaleType = ImageView.ScaleType.CENTER_CROP
+        wallpaper.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        screen.addView(wallpaper, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+
+        clock = TextView(this)
+        clock.setTextColor(Color.WHITE)
+        clock.textSize = 22f
+        clock.setShadowLayer(10f, 0f, 2f, Color.parseColor("#88000000"))
+        val clockLp = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.END
+        )
+        clockLp.topMargin = dp(22)
+        clockLp.marginEnd = dp(28)
+        screen.addView(clock, clockLp)
 
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
         row.gravity = Gravity.CENTER
-        firstTile = addTile(row, "SeriesDonghua", R.drawable.ic_seriesdonghua) {
+        firstTile = addPill(row, "SeriesDonghua", R.drawable.ic_seriesdonghua) {
             openUrl("https://seriesdonghua.com/")
         }
-        addTile(row, "JKAnime", R.drawable.ic_jkanime) {
+        addPill(row, "JKAnime", R.drawable.ic_jkanime) {
             openUrl("https://jkanime.net/")
         }
-        addTile(row, "Navegador", R.drawable.ic_navegador) {
+        addPill(row, "Navegador", R.drawable.ic_navegador) {
             askUrl()
         }
-        l.addView(row)
-
-        val actions = LinearLayout(this)
-        actions.orientation = LinearLayout.HORIZONTAL
-        actions.gravity = Gravity.CENTER
-        addHomeButton(actions, "Seguir navegando", 420) { if (hasPage) showHome(false) }
-        addHomeButton(actions, "Salir", 280) { finish() }
-        val actionsLp = LinearLayout.LayoutParams(
+        seguirTile = addPill(row, "Seguir", null) { if (hasPage) showHome(false) }
+        seguirTile.visibility = View.GONE
+        val rowLp = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         )
-        actionsLp.topMargin = 22
-        l.addView(actions, actionsLp)
+        rowLp.bottomMargin = dp(28)
+        screen.addView(row, rowLp)
 
         status = TextView(this)
-        status.setTextColor(Color.GRAY)
+        status.setTextColor(Color.WHITE)
         status.textSize = 14f
-        status.gravity = Gravity.CENTER
-        status.setPadding(0, 28, 0, 0)
-        l.addView(status)
+        status.visibility = View.GONE
+        status.setShadowLayer(8f, 0f, 1f, Color.parseColor("#88000000"))
+        val statusLp = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        )
+        statusLp.bottomMargin = dp(118)
+        screen.addView(status, statusLp)
+
+        addPill(null, "Salir", null) { finish() }.also { salir ->
+            homePills.add(salir)
+            val salirLp = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.END
+            )
+            salirLp.topMargin = dp(62)
+            salirLp.marginEnd = dp(28)
+            screen.addView(salir, salirLp)
+        }
+
+        urlPanel = buildUrlPanel()
+        screen.addView(urlPanel, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
 
         firstTile.requestFocus()
-        return l
+        return screen
     }
 
-    private fun addTile(parent: LinearLayout, label: String, imageRes: Int, onClick: () -> Unit): View {
-        val card = LinearLayout(this)
-        card.orientation = LinearLayout.VERTICAL
-        card.gravity = Gravity.CENTER_HORIZONTAL
-        card.setPadding(16, 16, 16, 14)
+    /** La tarjeta no cambia de tamaño ni de icono. El foco solo pone una sombra blanca encima. */
+    private fun addPill(parent: LinearLayout?, label: String, imageRes: Int?, onClick: () -> Unit): View {
+        val card = FrameLayout(this)
         card.isFocusable = true
         card.isClickable = true
-        card.setBackgroundColor(Color.parseColor("#333344"))
-        card.setOnFocusChangeListener { v, has ->
-            v.setBackgroundColor(Color.parseColor(if (has) "#E65100" else "#333344"))
-        }
+        card.background = pillBackground()
         card.setOnClickListener { onClick() }
 
-        val size = (resources.displayMetrics.density * 210).toInt()
-        val image = ImageView(this)
-        image.setImageResource(imageRes)
-        image.scaleType = ImageView.ScaleType.FIT_CENTER
-        image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        card.addView(image, LinearLayout.LayoutParams(size, size))
+        val content = LinearLayout(this)
+        content.orientation = LinearLayout.HORIZONTAL
+        content.gravity = Gravity.CENTER_VERTICAL
+        content.setPadding(dp(16), dp(10), dp(18), dp(10))
+        content.isDuplicateParentStateEnabled = false
+
+        if (imageRes != null) {
+            val image = ImageView(this)
+            image.setImageResource(imageRes)
+            image.adjustViewBounds = true
+            image.maxWidth = dp(92)
+            image.maxHeight = dp(52)
+            image.scaleType = ImageView.ScaleType.FIT_CENTER
+            image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            val imageLp = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(52)
+            )
+            imageLp.marginEnd = dp(12)
+            content.addView(image, imageLp)
+        }
 
         val text = TextView(this)
         text.text = label
         text.setTextColor(Color.WHITE)
-        text.textSize = 20f
-        text.gravity = Gravity.CENTER
-        text.setPadding(0, 12, 0, 0)
-        card.addView(text, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
+        text.textSize = 18f
+        text.setShadowLayer(6f, 0f, 1f, Color.parseColor("#66000000"))
+        content.addView(text)
+
+        card.addView(content, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
+        val veil = View(this)
+        val veilBg = GradientDrawable()
+        veilBg.cornerRadius = dp(22).toFloat()
+        veilBg.setColor(Color.WHITE)
+        veil.background = veilBg
+        veil.alpha = 0f
+        veil.isFocusable = false
+        veil.isClickable = false
+        card.addView(veil, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        card.setOnFocusChangeListener { _, has ->
+            veil.alpha = if (has) 0.34f else 0f
+        }
+
+        if (parent != null) {
+            val lp = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            lp.marginStart = dp(8)
+            lp.marginEnd = dp(8)
+            parent.addView(card, lp)
+            homePills.add(card)
+        }
+        return card
+    }
+
+    private fun buildUrlPanel(): View {
+        val scrim = FrameLayout(this)
+        scrim.setBackgroundColor(Color.parseColor("#66080A18"))
+        scrim.visibility = View.GONE
+        scrim.isClickable = true
+
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.gravity = Gravity.CENTER_HORIZONTAL
+        box.setPadding(dp(28), dp(24), dp(28), dp(22))
+        box.background = pillBackground()
+
+        val title = TextView(this)
+        title.text = "Dirección web"
+        title.setTextColor(Color.WHITE)
+        title.textSize = 22f
+        title.gravity = Gravity.CENTER
+        box.addView(title)
+
+        urlInput = EditText(this)
+        urlInput.inputType = InputType.TYPE_TEXT_VARIATION_URI
+        urlInput.setText("https://")
+        urlInput.setTextColor(Color.parseColor("#1A1230"))
+        urlInput.textSize = 18f
+        urlInput.setPadding(dp(16), dp(12), dp(16), dp(12))
+        urlInput.background = GradientDrawable().apply {
+            cornerRadius = dp(16).toFloat()
+            setColor(Color.parseColor("#F4F0FA"))
+        }
+        val inputLp = LinearLayout.LayoutParams(dp(460), ViewGroup.LayoutParams.WRAP_CONTENT)
+        inputLp.topMargin = dp(18)
+        box.addView(urlInput, inputLp)
+
+        val actions = LinearLayout(this)
+        actions.orientation = LinearLayout.HORIZONTAL
+        actions.gravity = Gravity.CENTER
+        val actionsLp = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        actionsLp.topMargin = dp(16)
+        box.addView(actions, actionsLp)
+
+        actions.addView(urlButton("Cancelar") { closeUrlPanel() })
+        actions.addView(urlButton("Ir") { submitUrl() })
+
+        val boxLp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        boxLp.gravity = Gravity.CENTER
+        scrim.addView(box, boxLp)
+        return scrim
+    }
+
+    private fun urlButton(label: String, onClick: () -> Unit): View {
+        val b = addPill(null, label, null, onClick)
         val lp = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
-        lp.marginStart = 16
-        lp.marginEnd = 16
-        parent.addView(card, lp)
-        return card
-    }
-
-    private fun addHomeButton(parent: LinearLayout, text: String, width: Int = 900, onClick: () -> Unit): Button {
-        val b = Button(this)
-        b.text = text
-        b.textSize = 20f
-        b.isAllCaps = false
-        b.setTextColor(Color.WHITE)
-        b.setBackgroundColor(Color.parseColor("#333344"))
-        b.isFocusable = true
-        b.setOnFocusChangeListener { v, has ->
-            v.setBackgroundColor(Color.parseColor(if (has) "#E65100" else "#333344"))
-        }
-        b.setOnClickListener { onClick() }
-        val lp = LinearLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT)
-        lp.topMargin = 14
-        lp.marginStart = 12
-        lp.marginEnd = 12
-        parent.addView(b, lp)
+        lp.marginStart = dp(8)
+        lp.marginEnd = dp(8)
+        b.layoutParams = lp
         return b
     }
 
     private fun askUrl() {
-        val input = EditText(this)
-        input.inputType = InputType.TYPE_TEXT_VARIATION_URI
-        input.setText("https://")
-        AlertDialog.Builder(this)
-            .setTitle("Direccion web")
-            .setView(input)
-            .setPositiveButton("Ir") { _, _ ->
-                var u = input.text.toString().trim()
-                if (u.isNotEmpty()) {
-                    if (!u.contains("://")) u = "https://$u"
-                    openUrl(u)
-                }
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
+        urlInput.setText("https://")
+        urlInput.setSelection(urlInput.text.length)
+        setHomePillsFocusable(false)
+        urlPanel.visibility = View.VISIBLE
+        urlInput.requestFocus()
+    }
+
+    private fun closeUrlPanel() {
+        urlPanel.visibility = View.GONE
+        setHomePillsFocusable(true)
+        firstTile.requestFocus()
+    }
+
+    private fun setHomePillsFocusable(enabled: Boolean) {
+        homePills.forEach { it.isFocusable = enabled }
+    }
+
+    private fun submitUrl() {
+        var u = urlInput.text.toString().trim()
+        if (u.isEmpty() || u == "https://" || u == "http://") return
+        if (!u.contains("://")) u = "https://$u"
+        urlPanel.visibility = View.GONE
+        setHomePillsFocusable(true)
+        openUrl(u)
+    }
+
+    private fun setStatus(text: String) {
+        status.text = text
+        status.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun openUrl(url: String) {
+        if (!browserReady) {
+            pendingUrl = url
+            setStatus("Abriendo...")
+            return
+        }
         hasPage = true
+        setStatus("")
         session.loadUri(url)
         showHome(false)
     }
@@ -249,6 +433,9 @@ class MainActivity : Activity() {
     private fun showHome(show: Boolean) {
         home.visibility = if (show) View.VISIBLE else View.GONE
         if (show) {
+            urlPanel.visibility = View.GONE
+            setHomePillsFocusable(true)
+            seguirTile.visibility = if (hasPage) View.VISIBLE else View.GONE
             firstTile.requestFocus()
         } else {
             geckoView.requestFocus()
@@ -312,47 +499,17 @@ class MainActivity : Activity() {
         return base(a) == base(b)
     }
 
-    /** Si la pagina ofrece 1080p y tambien 720p, elige 720p. Si no hay 720p, elige 480p. */
+    /** Actualiza el complemento aunque ya estuviera instalado en el perfil. */
     private fun installQualityHelper(runtime: GeckoRuntime) {
         runtime.webExtensionController
-            .installBuiltIn("resource://android/assets/quality/")
-            .accept({ _ -> }, { _ -> })
-    }
-
-    /** Instala uBlock Origin una sola vez (necesita internet). */
-    private fun installUBlock(runtime: GeckoRuntime) {
-        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
-        val ctrl = runtime.webExtensionController
-
-        ctrl.setPromptDelegate(object : WebExtensionController.PromptDelegate {
-            override fun onInstallPromptRequest(
-                extension: WebExtension,
-                permissions: Array<String>,
-                origins: Array<String>,
-                dataCollectionPermissions: Array<String>
-            ): GeckoResult<WebExtension.PermissionPromptResponse>? {
-                return GeckoResult.fromValue(
-                    WebExtension.PermissionPromptResponse(true, false, false)
-                )
-            }
-        })
-
-        if (prefs.getBoolean(KEY_UBLOCK, false)) {
-            status.text = "Bloqueador de anuncios (uBlock Origin): activo"
-            return
-        }
-        status.text = "Instalando bloqueador de anuncios (uBlock Origin)..."
-        ctrl.install(UBLOCK_URL).accept(
-            { _ ->
-                prefs.edit().putBoolean(KEY_UBLOCK, true).apply()
-                ui.post { status.text = "Bloqueador de anuncios (uBlock Origin): instalado" }
-            },
-            { err ->
-                ui.post {
-                    status.text = "No se pudo instalar uBlock Origin (se reintentara): ${err?.message ?: ""}"
-                }
-            }
-        )
+            .ensureBuiltIn(
+                "resource://android/assets/quality/",
+                "tvnav-quality@tvdonghua.browser"
+            )
+            .accept(
+                { _ -> ui.post { ensureBrowser(runtime) } },
+                { _ -> ui.post { ensureBrowser(runtime) } }
+            )
     }
 
     // ------------------------------------------------------------------ Control remoto
@@ -414,6 +571,10 @@ class MainActivity : Activity() {
 
     private fun handleBack() {
         if (home.visibility == View.VISIBLE) {
+            if (urlPanel.visibility == View.VISIBLE) {
+                closeUrlPanel()
+                return
+            }
             if (hasPage) showHome(false) else finish()
             return
         }
@@ -421,7 +582,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        session.close()
+        ui.removeCallbacks(clockTick)
+        if (::session.isInitialized) session.close()
         super.onDestroy()
     }
 }

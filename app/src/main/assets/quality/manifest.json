@@ -1,13 +1,27 @@
 {
   "manifest_version": 2,
-  "name": "TV Nav Quality",
-  "version": "1.0",
+  "name": "TV Nav",
+  "version": "1.5",
   "browser_specific_settings": {
     "gecko": {
       "id": "tvnav-quality@tvdonghua.browser"
     }
   },
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["bg.js"]
+  },
   "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": ["clicks.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
     {
       "matches": ["*://*/*"],
       "all_frames": true,

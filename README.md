@@ -6,12 +6,8 @@ Navegador para TV box Android con **motor Firefox (GeckoView) incluido en la APK
 
 1. Crea un repositorio nuevo en GitHub y sube **todo el contenido de esta carpeta** (incluida `.github`).
 2. Ve a la pestana **Actions** -> **Compilar APK** -> **Run workflow** (tambien corre solo al hacer push).
-3. Al terminar (~5-10 min), baja el artefacto **TVNavegador-APK**. Trae dos APK:
-   - `app-arm-debug.apk` -> TV box de **32 bits** (la mas comun, armeabi-v7a)
-   - `app-aarch64-debug.apk` -> TV box de **64 bits** (arm64-v8a)
+3. Al terminar, baja el artefacto **TVNavegador-APK**. Trae `app-arm-debug.apk` (32 bits, armeabi-v7a), que es la del stick.
 4. Copia la APK a la TV box (USB o app tipo "Send Files to TV") e instalala.
-
-Si dudas cual es: prueba primero la de 32 bits; funciona tambien en muchas de 64 bits.
 
 ## Uso con el control remoto
 
@@ -26,11 +22,13 @@ Si dudas cual es: prueba primero la de 32 bits; funciona tambien en muchas de 64
 
 ## Incluye
 
-- Pantalla de inicio con cuadros: SeriesDonghua, JKAnime y navegador libre.
-- User-agent de escritorio, con la pagina maquetada a 1280x720.
-- El video se decodifica por software: el chip de estas TV box deja la imagen en negro si se usa el decodificador de hardware.
+- Pantalla de inicio con el fondo a pantalla completa y tres tarjetas abajo: SeriesDonghua, JKAnime y navegador libre. La hora es la del stick. El foco solo aclara la tarjeta.
+- User-agent y viewport de escritorio, para que el reproductor de la pagina cargue.
+- El video no usa el decodificador de hardware: en este chip deja el cuadro en negro. El ajuste se aplica al arrancar Gecko.
 - Bloqueo de pop-ups y de esquemas raros (intent://, market://).
-- uBlock Origin se instala solo la primera vez (requiere internet).
+- El primer clic en una tarjeta de capitulo abre el capitulo. El enlace de publicidad que esas paginas ponen encima no se sigue.
+- En el stick, las portadas se decodifican de una en una. No se cargan las fuentes web, la analítica ni los avisos que frenan la página.
+- Sin uBlock Origin: en este stick su filtro congelaba la pagina mas de un minuto.
 
 ## Notas
 

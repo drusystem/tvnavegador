@@ -14,20 +14,16 @@ android {
         applicationId "com.tvdonghua.browser"
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName "1.2"
+        versionCode 7
+        versionName "1.6"
     }
 
-    // Dos APK: una para TV box de 32 bits (la mas comun) y otra de 64 bits
+    // Solo 32 bits (armeabi-v7a): es el ABI del stick.
     flavorDimensions "abi"
     productFlavors {
         arm {
             dimension "abi"
             ndk { abiFilters "armeabi-v7a" }
-        }
-        aarch64 {
-            dimension "abi"
-            ndk { abiFilters "arm64-v8a" }
         }
     }
 
@@ -43,5 +39,4 @@ android {
 
 dependencies {
     armImplementation "org.mozilla.geckoview:geckoview-armeabi-v7a:${geckoviewVersion}"
-    aarch64Implementation "org.mozilla.geckoview:geckoview-arm64-v8a:${geckoviewVersion}"
 }
