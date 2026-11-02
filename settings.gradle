@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "TVNavegador"
 include ':app'
+include ':viewanime'

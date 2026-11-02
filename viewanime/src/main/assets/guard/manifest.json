@@ -1,0 +1,38 @@
+{
+  "manifest_version": 2,
+  "name": "ViewAnime",
+  "version": "1.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "viewanime-guard@tvdonghua.viewanime"
+    }
+  },
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["bg.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": ["clicks.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["*://*/*"],
+      "js": ["screen.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": ["*://*/*"],
+      "all_frames": true,
+      "js": ["quality.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
