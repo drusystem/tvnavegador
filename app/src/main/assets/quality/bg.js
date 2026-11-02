@@ -29,3 +29,32 @@ browser.webRequest.onBeforeRequest.addListener(
   },
   ["blocking"]
 );
+
+(function () {
+  var tries = 0;
+
+  function connect() {
+    if (tries++ > 25) return;
+    var port;
+    try {
+      port = browser.runtime.connectNative("tvnav");
+    } catch (e) {
+      setTimeout(connect, 500);
+      return;
+    }
+    port.onDisconnect.addListener(function () {
+      setTimeout(connect, 500);
+    });
+    port.onMessage.addListener(function (msg) {
+      if (!msg || !msg.action) return;
+      browser.runtime.sendMessage(msg).catch(function () {});
+    });
+  }
+
+  connect();
+
+  browser.runtime.onMessage.addListener(function (msg) {
+    if (!msg || msg.action !== "playing") return;
+    browser.runtime.sendMessage({ action: "quiet", on: !!msg.on }).catch(function () {});
+  });
+})();

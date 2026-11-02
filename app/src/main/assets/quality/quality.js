@@ -4,7 +4,7 @@
   }
 
   function level(text) {
-    if (!text || text.length > 12) return 0;
+    if (!text || text.length > 18) return 0;
     if (text.indexOf("1080") >= 0) return 1080;
     if (text.indexOf("720") >= 0) return 720;
     if (text.indexOf("480") >= 0) return 480;
@@ -19,7 +19,9 @@
   }
 
   function pick() {
-    var nodes = document.querySelectorAll("button, a, li, [role='button']");
+    var nodes = document.querySelectorAll(
+      "button, a, li, [role='button'], [class*='quality'], [class*='resolution'], [class*='settings-content-item']"
+    );
     var option480 = null;
     var option720 = null;
     var playing480 = false;
@@ -46,6 +48,8 @@
   }
 
   pick();
-  setTimeout(pick, 2000);
-  setTimeout(pick, 5000);
+  setTimeout(pick, 1500);
+  setTimeout(pick, 4000);
+  setTimeout(pick, 8000);
+  setTimeout(pick, 14000);
 })();

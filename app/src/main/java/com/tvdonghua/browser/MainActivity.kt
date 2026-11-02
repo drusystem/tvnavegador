@@ -28,6 +28,7 @@ import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.ScreenLength
+import org.mozilla.geckoview.WebExtension
 import java.util.concurrent.atomic.AtomicInteger
 
 class MainActivity : Activity() {
@@ -63,6 +64,7 @@ class MainActivity : Activity() {
     private var browserReady = false
     private var pendingUrl: String? = null
     private var pageFullScreen = false
+    private var fsPort: WebExtension.Port? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -148,7 +150,11 @@ class MainActivity : Activity() {
                 "  media.cache_readahead_limit.cellular: 90\n" +
                 "  media.cache_resume_threshold: 15\n" +
                 "  media.cache_resume_threshold.cellular: 15\n" +
-                "  media.decoder.skip_when_video_too_slow_ms: 700\n" +
+                "  media.decoder.skip-to-next-key-frame.enabled: false\n" +
+                "  media.decoder.skip_when_video_too_slow_ms: 2500\n" +
+                "  media.av1.enabled: false\n" +
+                "  media.hevc.enabled: false\n" +
+                "  media.mediasource.vp9.enabled: false\n" +
                 "  dom.ipc.processCount: 1\n" +
                 "  dom.ipc.processCount.webIsolated: 1\n" +
                 "  dom.ipc.processPrelaunch.enabled: false\n" +
@@ -168,7 +174,8 @@ class MainActivity : Activity() {
                 "  network.dnsCacheExpiration: 3600\n" +
                 "  network.dnsCacheEntries: 400\n" +
                 "  network.predictor.enabled: false\n" +
-                "  network.prefetch-next: false\n"
+                "  network.prefetch-next: false\n" +
+                "  full-screen-api.allow-trusted-requests-only: false\n"
         )
         return file.absolutePath
     }
@@ -535,7 +542,10 @@ class MainActivity : Activity() {
                 "tvnav-quality@tvdonghua.browser"
             )
             .accept(
-                { _ -> ui.post { ensureBrowser(runtime) } },
+                { ext ->
+                    ext?.setMessageDelegate(fsMessages, "tvnav")
+                    ui.post { ensureBrowser(runtime) }
+                },
                 { _ -> ui.post { ensureBrowser(runtime) } }
             )
     }
@@ -585,6 +595,19 @@ class MainActivity : Activity() {
         // En el inicio, flechas y OK mueven el foco entre los botones.
         if (home.visibility == View.VISIBLE) return super.dispatchKeyEvent(event)
 
+        // pv del control (tercera tecla de apps, despues de YT y NF).
+        if (down && event.repeatCount == 0 && isFullscreenKey(code)) {
+            if (::session.isInitialized) {
+                if (pageFullScreen) {
+                    pageFullScreen = false
+                    session.exitFullScreen()
+                } else {
+                    requestPageFullscreen()
+                }
+            }
+            return true
+        }
+
         // En la pagina, flechas y OK no se interceptan: los usa el cursor del mando.
         when (code) {
             KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
@@ -595,6 +618,32 @@ class MainActivity : Activity() {
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    private fun isFullscreenKey(code: Int): Boolean {
+        return code == KeyEvent.KEYCODE_F3 ||
+            code == KeyEvent.KEYCODE_PROG_BLUE ||
+            code == KeyEvent.KEYCODE_PROG_YELLOW
+    }
+
+    private val fsMessages = object : WebExtension.MessageDelegate {
+        override fun onConnect(port: WebExtension.Port) {
+            fsPort = port
+            port.setDelegate(object : WebExtension.PortDelegate {
+                override fun onDisconnect(port: WebExtension.Port) {
+                    if (fsPort == port) fsPort = null
+                }
+            })
+        }
+    }
+
+    private fun requestPageFullscreen() {
+        val port = fsPort ?: return
+        try {
+            port.postMessage(org.json.JSONObject().put("action", "fullscreen"))
+        } catch (e: Exception) {
+            fsPort = null
+        }
     }
 
     private fun handleBack() {
