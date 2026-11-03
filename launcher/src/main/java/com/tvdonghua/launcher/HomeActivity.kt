@@ -23,6 +23,8 @@ class HomeActivity : Activity() {
     private lateinit var prefs: SharedPreferences
     private lateinit var look: Look
     private lateinit var root: FrameLayout
+    private lateinit var livingBg: LivingBg
+    private lateinit var clipPane: ClipPane
     private lateinit var clock: TextView
     private lateinit var settingsChip: ImageView
     private lateinit var favLabel: TextView
@@ -31,6 +33,7 @@ class HomeActivity : Activity() {
     private lateinit var appRow: SlideRow
     private lateinit var menuScrim: FrameLayout
     private lateinit var menuCard: LinearLayout
+    private lateinit var chromeSparks: ChromeSparks
     private var pickerScrim: FrameLayout? = null
     private var menuArmed = false
     private var menuReadyAt = 0L
@@ -53,11 +56,8 @@ class HomeActivity : Activity() {
         root = FrameLayout(this)
         root.clipChildren = false
 
-        val wallpaper = ImageView(this)
-        wallpaper.setImageResource(R.drawable.bg_home)
-        wallpaper.scaleType = ImageView.ScaleType.CENTER_CROP
-        wallpaper.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        root.addView(wallpaper, FrameLayout.LayoutParams(
+        livingBg = LivingBg(this)
+        root.addView(livingBg, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ))
@@ -115,6 +115,7 @@ class HomeActivity : Activity() {
         settingsChip.nextFocusLeftId = settingsChip.id
         clock.nextFocusLeftId = settingsChip.id
         clock.nextFocusRightId = clock.id
+        chromeSparks = ChromeSparks(root, settingsChip, clock)
 
         val stack = LinearLayout(this)
         stack.orientation = LinearLayout.VERTICAL
@@ -142,6 +143,12 @@ class HomeActivity : Activity() {
         )
         stackLp.bottomMargin = dp(22)
         root.addView(stack, stackLp)
+
+        clipPane = ClipPane(this)
+        val clipLp = FrameLayout.LayoutParams(dp(248), dp(140), Gravity.BOTTOM or Gravity.END)
+        clipLp.bottomMargin = dp(22)
+        clipLp.marginEnd = dp(28)
+        root.addView(clipPane, clipLp)
 
         menuScrim = FrameLayout(this)
         menuScrim.setBackgroundColor(Color.TRANSPARENT)
@@ -185,12 +192,20 @@ class HomeActivity : Activity() {
         appLabel.typeface = look.typeface(true)
         appLabel.setShadowLayer(6f, 0f, 1f, look.shadow())
         menuCard.background = glassArgb(28, look.panelArgb())
+        if (::livingBg.isInitialized) livingBg.applyLook()
+        if (::clipPane.isInitialized) clipPane.applyLook()
+        if (::chromeSparks.isInitialized) chromeSparks.sync(look.bgSparksUi())
     }
 
     override fun onResume() {
         super.onResume()
         apps = loadLaunchableApps()
         applyChrome()
+        if (::clipPane.isInitialized) {
+            clipPane.reloadFromPrefs()
+            clipPane.play()
+        }
+        if (::livingBg.isInitialized) livingBg.startMotion()
         if (menuScrim.visibility != View.VISIBLE && pickerScrim == null) {
             val sig = signature()
             if (sig != rendered) publish(currentFocus?.tag as? String)
@@ -200,7 +215,15 @@ class HomeActivity : Activity() {
 
     override fun onPause() {
         clock.removeCallbacks(tick)
+        if (::clipPane.isInitialized) clipPane.pause()
+        if (::livingBg.isInitialized) livingBg.stopMotion()
+        if (::chromeSparks.isInitialized) chromeSparks.stop()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        if (::clipPane.isInitialized) clipPane.release()
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -429,6 +452,19 @@ class HomeActivity : Activity() {
         clock.nextFocusDownId = first.id
         settingsChip.nextFocusUpId = settingsChip.id
         clock.nextFocusUpId = clock.id
+        val lastFav = favCards.lastOrNull()
+        val lastApp = appCards.lastOrNull()
+        if (look.clipVisible()) {
+            lastFav?.nextFocusRightId = clipPane.id
+            lastApp?.nextFocusRightId = clipPane.id
+            clipPane.nextFocusLeftId = (lastApp ?: lastFav)?.id ?: clipPane.id
+            clipPane.nextFocusUpId = clock.id
+            clipPane.nextFocusDownId = clipPane.id
+            clipPane.nextFocusRightId = clipPane.id
+        } else {
+            lastFav?.nextFocusRightId = lastFav.id
+            lastApp?.nextFocusRightId = lastApp.id
+        }
     }
 
     private fun launch(entry: AppEntry) {
@@ -549,6 +585,7 @@ class HomeActivity : Activity() {
         walk(appRow)
         settingsChip.isFocusable = enabled
         clock.isFocusable = enabled
+        if (::clipPane.isInitialized) clipPane.isFocusable = enabled
     }
 
     private fun move(top: Boolean, flat: String, delta: Int) {

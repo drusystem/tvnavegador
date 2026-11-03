@@ -4,7 +4,6 @@ import android.service.dreams.DreamService
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.TextView
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -12,6 +11,7 @@ import java.util.Locale
 
 class ForestDream : DreamService() {
     private lateinit var clock: TextView
+    private var livingBg: LivingBg? = null
 
     private val tick = object : Runnable {
         override fun run() {
@@ -27,13 +27,12 @@ class ForestDream : DreamService() {
         isFullscreen = true
         isScreenBright = true
         val root = FrameLayout(this)
-        val image = ImageView(this)
-        image.setImageResource(R.drawable.bg_home)
-        image.scaleType = ImageView.ScaleType.CENTER_CROP
-        root.addView(image, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        ))
+        livingBg = LivingBg(this).also { bg ->
+            root.addView(bg, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+        }
         val look = Look(this)
         clock = TextView(this)
         clock.setTextColor(look.textColor())
@@ -54,6 +53,8 @@ class ForestDream : DreamService() {
 
     override fun onDetachedFromWindow() {
         if (::clock.isInitialized) clock.removeCallbacks(tick)
+        livingBg?.stopMotion()
+        livingBg = null
         super.onDetachedFromWindow()
     }
 }

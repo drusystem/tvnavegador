@@ -17,11 +17,13 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.text.InputType
+import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import java.net.Inet4Address
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -53,10 +55,7 @@ class SettingsActivity : Activity() {
         currentPage = intent.getStringExtra(EXTRA_PAGE) ?: "hora"
         window.decorView.setBackgroundColor(Color.parseColor("#1A1440"))
         val root = FrameLayout(this)
-        val wallpaper = ImageView(this)
-        wallpaper.setImageResource(R.drawable.bg_home)
-        wallpaper.scaleType = ImageView.ScaleType.CENTER_CROP
-        root.addView(wallpaper, FrameLayout.LayoutParams(
+        root.addView(LivingBg(this), FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ))
@@ -296,6 +295,15 @@ class SettingsActivity : Activity() {
         box.addView(tuner("modal-op", "Opacidad de modales", { "${look.panelOpacity()}%" }) {
             look.setPanelOpacity(look.panelOpacity() + it * 4)
         }, gap())
+        box.addView(tuner("fondo-anim", "Fondo animado", { look.bgName() }) { look.stepBg(it) }, gap())
+        box.addView(tuner("clip-visible", "Reproductor del inicio", { look.clipVisibleName() }) {
+            look.stepClipVisible(it)
+        }, gap())
+        val clipUrl = ClipPane.url(this)
+        val clipLabel = if (clipUrl.length > 42) clipUrl.take(39) + "…" else clipUrl
+        val clipBtn = action("Video del inicio\n$clipLabel") { openClipEditor() }
+        clipBtn.tag = "clip-url"
+        box.addView(clipBtn, gap())
         val reset = action("Volver a valores por defecto") {
             look.reset()
             commitLook("reset")
@@ -719,6 +727,82 @@ class SettingsActivity : Activity() {
         val lp = wrap()
         lp.topMargin = dp(14)
         return lp
+    }
+
+    private fun openClipEditor() {
+        val root = window.decorView as? ViewGroup ?: return
+        val scrim = FrameLayout(this)
+        scrim.setBackgroundColor(Color.parseColor("#66060A14"))
+        scrim.isClickable = true
+        scrim.isFocusable = false
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.gravity = Gravity.CENTER_HORIZONTAL
+        box.setPadding(dp(22), dp(18), dp(22), dp(16))
+        box.background = glassArgb(28, look.panelArgb())
+        val title = TextView(this)
+        title.text = "Enlace de YouTube"
+        title.setTextColor(look.textColor())
+        title.textSize = look.sp(20f)
+        title.typeface = look.typeface(true)
+        title.gravity = Gravity.CENTER
+        title.setShadowLayer(6f, 0f, 1f, look.shadow())
+        box.addView(title)
+        val field = EditText(this)
+        field.setText(ClipPane.url(this))
+        field.setSelection(field.text.length)
+        field.setTextColor(Color.parseColor("#1A1230"))
+        field.setHintTextColor(Color.parseColor("#661A1230"))
+        field.hint = "https://www.youtube.com/watch?v=…"
+        field.textSize = look.sp(15f)
+        field.typeface = look.typeface(false)
+        field.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        field.setSingleLine(true)
+        field.background = glass(14, "#F4F0FA")
+        field.setPadding(dp(14), dp(12), dp(14), dp(12))
+        field.isFocusable = true
+        field.isFocusableInTouchMode = true
+        field.id = View.generateViewId()
+        val fieldLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        fieldLp.topMargin = dp(14)
+        box.addView(field, fieldLp)
+        fun close() {
+            root.removeView(scrim)
+        }
+        val save = action("Guardar") {
+            val raw = field.text?.toString().orEmpty()
+            if (!ClipPane.saveUrl(this, raw)) {
+                Toast.makeText(this, "Enlace de YouTube no válido", Toast.LENGTH_SHORT).show()
+                return@action
+            }
+            close()
+            Toast.makeText(this, "Descargando video…", Toast.LENGTH_SHORT).show()
+            ClipStore.replaceAsync(
+                this,
+                onReady = {
+                    Toast.makeText(this, "Video listo para el inicio", Toast.LENGTH_SHORT).show()
+                    commitLook("clip-url")
+                },
+                onStatus = { message ->
+                    if (message != "Video listo" && message != "Descargando video…") {
+                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+        }
+        val cancel = action("Cancelar") { close() }
+        val saveLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        saveLp.topMargin = dp(14)
+        box.addView(save, saveLp)
+        val cancelLp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        cancelLp.topMargin = dp(8)
+        box.addView(cancel, cancelLp)
+        scrim.addView(box, FrameLayout.LayoutParams(dp(520), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        root.addView(scrim, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        field.requestFocus()
     }
 
     private fun openSystem(action: String) {

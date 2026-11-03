@@ -5,15 +5,15 @@ plugins {
 
 android {
     namespace 'com.tvdonghua.launcher'
-    compileSdk 34
+    compileSdk 35
     buildToolsVersion "34.0.0"
 
     defaultConfig {
         applicationId "com.tvdonghua.launcher"
         minSdk 26
         targetSdk 34
-        versionCode 8
-        versionName "1.7"
+        versionCode 14
+        versionName "2.3"
     }
 
     compileOptions {
@@ -30,4 +30,15 @@ android {
             minifyEnabled false
         }
     }
+
+    packaging {
+        resources {
+            excludes += ["META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*"]
+        }
+    }
+}
+
+dependencies {
+    implementation "androidx.media3:media3-exoplayer:1.5.1"
+    implementation "com.github.TeamNewPipe:NewPipeExtractor:0.24.6"
 }

@@ -6,7 +6,7 @@ Hay dos productos vivos en el mismo repo. Sus contextos no se mezclan:
 
 | Si el cambio es de… | Se lee | No se usa como guía de UI ni de reproducción |
 |---|---|---|
-| Inicio del stick, favoritos, ajustes, salvapantallas | [`launcher/spec.md`](launcher/spec.md) | `viewanime/` y `app/` |
+| Inicio del stick, favoritos, ajustes, fondos animados, clip local, salvapantallas | [`launcher/spec.md`](launcher/spec.md) | `viewanime/` y `app/` |
 | Catálogo, capítulo, reproductor, navegador de ViewAnime | [`viewanime/spec.md`](viewanime/spec.md) | `launcher/` y `app/` |
 | NavAnime (`app/`, `com.tvdonghua.browser`) | No hay spec aquí | No se modifica salvo pedido explícito |
 

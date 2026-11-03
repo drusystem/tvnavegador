@@ -17,6 +17,9 @@ internal class Look(context: Context) {
     fun cardFocusOpacity(): Int = prefs.getInt(CARD_FOCUS, 38).coerceIn(8, 95)
     fun panelRgb(): Int = opaque(prefs.getInt(PANEL, Color.parseColor("#F4F0FA")))
     fun panelOpacity(): Int = prefs.getInt(PANEL_OPACITY, 22).coerceIn(4, 92)
+    fun bgKey(): String = prefs.getString(BG, BG_LEVITATE) ?: BG_LEVITATE
+    fun clipVisible(): Boolean = prefs.getBoolean(CLIP_VISIBLE, true)
+    fun bgSparksUi(): Boolean = bgKey() == BG_LEVITATE
 
     fun setTextColor(index: Int) = put(TEXT, palette[wrap(index, palette.size)].second)
     fun setTextScale(value: Int) = put(TEXT_SCALE, value.coerceIn(70, 160))
@@ -28,16 +31,28 @@ internal class Look(context: Context) {
     fun setCardFocusOpacity(value: Int) = put(CARD_FOCUS, value.coerceIn(8, 95))
     fun setPanelColor(index: Int) = put(PANEL, palette[wrap(index, palette.size)].second)
     fun setPanelOpacity(value: Int) = put(PANEL_OPACITY, value.coerceIn(4, 92))
+    fun setBg(index: Int) = prefs.edit().putString(BG, backgrounds[wrap(index, backgrounds.size)].first).apply()
+    fun setClipVisible(visible: Boolean) = prefs.edit().putBoolean(CLIP_VISIBLE, visible).apply()
 
     fun stepTextColor(delta: Int) = setTextColor(colorIndex(textColor()) + delta)
     fun stepFont(delta: Int) = setFont(fontIndex() + delta)
     fun stepCardColor(delta: Int) = setCardColor(colorIndex(cardRgb()) + delta)
     fun stepPanelColor(delta: Int) = setPanelColor(colorIndex(panelRgb()) + delta)
+    fun stepBg(delta: Int) = setBg(bgIndex() + delta)
+    fun stepClipVisible(@Suppress("UNUSED_PARAMETER") delta: Int) = setClipVisible(!clipVisible())
 
     fun textName(): String = colorName(textColor())
     fun cardName(): String = colorName(cardRgb())
     fun panelName(): String = colorName(panelRgb())
     fun fontName(): String = fonts[fontIndex()].second
+    fun bgName(): String = backgrounds[bgIndex()].second
+    fun clipVisibleName(): String = if (clipVisible()) "Visible" else "Oculto"
+
+    fun bgRawId(): Int = when (bgKey()) {
+        BG_DANCE -> R.raw.bg_home_dance
+        BG_LEVITATE -> R.raw.bg_home_levitate
+        else -> R.raw.bg_home_breeze
+    }
 
     fun sp(base: Float): Float = base * textScale() / 100f
 
@@ -76,13 +91,20 @@ internal class Look(context: Context) {
     fun signature(): String {
         return listOf(
             textColor(), textScale(), fontKey(), cardScale(), iconScale(),
-            cardRgb(), cardOpacity(), cardFocusOpacity(), panelRgb(), panelOpacity()
+            cardRgb(), cardOpacity(), cardFocusOpacity(), panelRgb(), panelOpacity(),
+            bgKey(), clipVisible()
         ).joinToString(",")
     }
 
     private fun fontIndex(): Int {
         val key = fontKey()
         val index = fonts.indexOfFirst { it.first == key }
+        return if (index < 0) 0 else index
+    }
+
+    private fun bgIndex(): Int {
+        val key = bgKey()
+        val index = backgrounds.indexOfFirst { it.first == key }
         return if (index < 0) 0 else index
     }
 
@@ -122,6 +144,17 @@ internal class Look(context: Context) {
         private const val CARD_FOCUS = "cardFocus"
         private const val PANEL = "panel"
         private const val PANEL_OPACITY = "panelOpacity"
+        private const val BG = "bg"
+        private const val CLIP_VISIBLE = "clipVisible"
+        const val BG_BREEZE = "breeze"
+        const val BG_DANCE = "dance"
+        const val BG_LEVITATE = "levitate"
+
+        val backgrounds = listOf(
+            BG_BREEZE to "Brisa",
+            BG_DANCE to "Danza",
+            BG_LEVITATE to "Levitar"
+        )
 
         val palette = listOf(
             "Blanco" to Color.WHITE,

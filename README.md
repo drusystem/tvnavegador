@@ -14,9 +14,35 @@ El contexto para seguir mejorando cada uno, sin mezclarlos, está en [`sdd/`](sd
 
 ## Launcher
 
-Inicio con el fondo del bosque, la hora del stick y dos filas: favoritos arriba y el resto de aplicaciones abajo. El engranaje y la hora abren los ajustes.
+Inicio con el fondo animado de Frieren, la hora del stick y dos filas: favoritos arriba y el resto de aplicaciones abajo. Abajo a la derecha puede verse un clip local en bucle (por defecto el OP). El engranaje y la hora abren los ajustes.
 
 ![Inicio del launcher](docs/capturas/launcher/inicio.png)
+
+### Fondos animados (referencia)
+
+Tres cortos en loop, generados a partir de `launcher/src/main/res/drawable-nodpi/bg_home.jpg`. Se eligen en Ajustes → Apariencia → **Fondo animado**. Archivos en `launcher/src/main/res/raw/`.
+
+**Brisa** (`bg_home_breeze.mp4`): pétalos, pelo, río y brillo del báculo; Frieren en su sitio.
+
+https://github.com/drusystem/tvnavegador/raw/main/launcher/src/main/res/raw/bg_home_breeze.mp4
+
+<video src="launcher/src/main/res/raw/bg_home_breeze.mp4" controls width="720"></video>
+
+**Danza** (`bg_home_dance.mp4`): baile con el báculo, misma distancia de cámara.
+
+https://github.com/drusystem/tvnavegador/raw/main/launcher/src/main/res/raw/bg_home_dance.mp4
+
+<video src="launcher/src/main/res/raw/bg_home_dance.mp4" controls width="720"></video>
+
+**Levitar** (`bg_home_levitate.mp4`): flota sin acercarse, baile armonioso con pétalos y haz hacia la esquina superior derecha (tuerca y hora reciben destellos).
+
+https://github.com/drusystem/tvnavegador/raw/main/launcher/src/main/res/raw/bg_home_levitate.mp4
+
+<video src="launcher/src/main/res/raw/bg_home_levitate.mp4" controls width="720"></video>
+
+### Clip del inicio
+
+Panel glass con esquinas redondeadas. Reproduce un mp4 local en bucle (`filesDir/clip/`, sembrado desde `launcher/src/main/assets/clip/default.mp4`). OK pausa o sigue. En Apariencia se puede ocultar, o pegar otro enlace de YouTube: se descarga, se borra el anterior y se reemplaza.
 
 Dejar pulsado OK sobre una app abre su menú: moverla, quitarla, detenerla o cancelar. Detener cierra el proceso de esa app (también con `su`, si el stick lo tiene) y no aparece sobre el propio launcher.
 
@@ -44,11 +70,11 @@ Los ajustes comparten el mismo fondo y un carril a la izquierda. La página de l
 
 ![Sistema](docs/capturas/launcher/ajustes-sistema.png)
 
-Apariencia cambia letras, fuente, tamaño de tarjetas e iconos, y el color y la opacidad de tarjetas y modales. OK entra a editar una fila, izquierda y derecha cambian el valor, Atrás suelta.
+Apariencia cambia letras, fuente, tamaño de tarjetas e iconos, color y opacidad de tarjetas y modales, el fondo animado (Brisa / Danza / Levitar), si se muestra el reproductor del inicio, y el enlace del clip. OK entra a editar una fila, izquierda y derecha cambian el valor, Atrás suelta.
 
 ![Apariencia](docs/capturas/launcher/ajustes-apariencia.png)
 
-También hay un salvapantallas (`ForestDream`) con el mismo fondo y la hora. No tiene captura aquí porque solo aparece cuando el sistema lo lanza.
+También hay un salvapantallas (`ForestDream`) con el mismo fondo animado y la hora. No tiene captura aquí porque solo aparece cuando el sistema lo lanza.
 
 ## ViewAnime
 
